@@ -111,6 +111,10 @@ client.on("interactionCreate", async (interaction) => {
     embeds: [makeEmbed([], sferaTime)],
   });
 
+  await sferaBotChannel.send(
+  `<@&${RED_LOTUS_ROLE_ID}> 🌐 Nova Sfera prijava je otvorena!\n\nReagujte sa ✅ ili ❎ na listu ispod.\nSfera počinje u ${formatTime(sferaTime)}.`
+);
+  
   await message.react(SIGNUP_EMOJI);
   await message.react(LEAVE_EMOJI);
 
