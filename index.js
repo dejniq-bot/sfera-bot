@@ -176,7 +176,7 @@ client.on("interactionCreate", async (interaction) => {
           : "Nema prijavljenih igrača.";
 
       await sendAnnouncement(
-        `<@&${RED_LOTUS_ROLE_ID}> SVI KOJI IGRAJU SFERU NEK DOLAZE U VOICE #SFERAVOICE I DO FAM KUCE DA SE OPREME.!!\n\n${taggedPlayers}`
+        `<@&${RED_LOTUS_ROLE_ID}> SVI KOJI IGRAJU SFERU NEK DOLAZE U VOICE SFERAVOICE I DO FAM KUCE DA SE OPREME.!!\n\n${taggedPlayers}`
       );
     }, 25 * 60 * 1000)
   );
@@ -193,9 +193,9 @@ client.on("interactionCreate", async (interaction) => {
               .join("\n")
           : "Nema prijavljenih igrača.";
 
-      await interaction.channel.send(
-        `🌐 **FINALNA LISTA ZA SFERU** 🌐\n\n${finalList}`
-      );
+      await sferaBotChannel.send(
+  `<@&${RED_LOTUS_ROLE_ID}> 🌐 **FINALNA LISTA ZA SFERU** 🌐\n\n${finalList}`
+);
 
       clearSferaTimers();
       activeSfera = null;
