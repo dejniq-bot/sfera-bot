@@ -15,6 +15,7 @@ const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
 const ANNOUNCE_CHANNEL_ID = process.env.ANNOUNCE_CHANNEL_ID;
 const RED_LOTUS_ROLE_ID = process.env.RED_LOTUS_ROLE_ID;
+const SFERA_BOT_CHANNEL_ID = process.env.SFERA_BOT_CHANNEL_ID;
 
 const SIGNUP_EMOJI = "✅";
 const LEAVE_EMOJI = "❎";
@@ -32,9 +33,10 @@ const client = new Client({
 });
 
 function formatTime(date) {
-  const hours = date.getHours().toString().padStart(2, "0");
-  const minutes = date.getMinutes().toString().padStart(2, "0");
-  return `${hours}:${minutes}`;
+  return `${date.getHours().toString().padStart(2, "0")}:${date
+    .getMinutes()
+    .toString()
+    .padStart(2, "0")}`;
 }
 
 function makeEmbed(players, sferaTime) {
@@ -54,17 +56,17 @@ function makeEmbed(players, sferaTime) {
     .setFooter({ text: "Prijava traje 30 minuta." });
 }
 
+async function sendAnnouncement(text) {
+  const channel = await client.channels.fetch(ANNOUNCE_CHANNEL_ID);
+  if (channel) await channel.send(text);
+}
+
 async function updateSignupMessage() {
   if (!activeSfera) return;
 
   await activeSfera.message.edit({
     embeds: [makeEmbed(activeSfera.players, activeSfera.sferaTime)],
   });
-}
-
-async function sendAnnouncement(text) {
-  const channel = await client.channels.fetch(ANNOUNCE_CHANNEL_ID);
-  if (channel) await channel.send(text);
 }
 
 function clearSferaTimers() {
@@ -76,7 +78,7 @@ function clearSferaTimers() {
   });
 }
 
-client.once("ready", async () => {
+client.once("clientReady", async () => {
   console.log(`Bot je online kao ${client.user.tag}`);
 
   const commands = [
@@ -98,23 +100,30 @@ client.on("interactionCreate", async (interaction) => {
   if (!interaction.isChatInputCommand()) return;
   if (interaction.commandName !== "sfera") return;
 
+  await interaction.deferReply({ ephemeral: true });
+
   if (activeSfera) {
-    return interaction.reply({
+    return interaction.editReply({
       content: "❌ Sfera prijava je već aktivna.",
-      ephemeral: true,
     });
   }
 
   const sferaTime = new Date(Date.now() + 30 * 60 * 1000);
 
-  const message = await interaction.channel.send({
+  const sferaBotChannel = await client.channels.fetch(
+    SFERA_BOT_CHANNEL_ID
+  );
+
+  const message = await sferaBotChannel.send({
     embeds: [makeEmbed([], sferaTime)],
   });
 
   await sferaBotChannel.send(
-  `<@&${RED_LOTUS_ROLE_ID}> 🌐 Nova Sfera prijava je otvorena!\n\nReagujte sa ✅ ili ❎ na listu ispod.\nSfera počinje u ${formatTime(sferaTime)}.`
-);
-  
+    `<@&${RED_LOTUS_ROLE_ID}> 🌐 Nova Sfera prijava je otvorena!\n\nReagujte sa ✅ ili ❎ na listu ispod.\nSfera počinje u ${formatTime(
+      sferaTime
+    )}.`
+  );
+
   await message.react(SIGNUP_EMOJI);
   await message.react(LEAVE_EMOJI);
 
@@ -123,15 +132,14 @@ client.on("interactionCreate", async (interaction) => {
     players: [],
     timers: [],
     sferaTime,
-    signupChannelId: interaction.channel.id,
+    signupChannelId: SFERA_BOT_CHANNEL_ID,
   };
 
-  await interaction.reply({
-    content: "✅ Sfera prijava je pokrenuta.",
-    ephemeral: true,
+  await interaction.editReply({
+    content: `✅ Sfera prijava je pokrenuta u <#${SFERA_BOT_CHANNEL_ID}>.`,
   });
 
-  // Svakih 5 minuta obavještenje koliko ima do sfere
+  // SVAKIH 5 MINUTA
   activeSfera.timers.push(
     setInterval(async () => {
       if (!activeSfera) return;
@@ -180,12 +188,12 @@ client.on("interactionCreate", async (interaction) => {
           : "Nema prijavljenih igrača.";
 
       await sendAnnouncement(
-        `<@&${RED_LOTUS_ROLE_ID}> SVI KOJI IGRAJU SFERU NEK DOLAZE U VOICE SFERAVOICE I DO FAM KUCE DA SE OPREME.!!\n\n${taggedPlayers}`
+        `<@&${RED_LOTUS_ROLE_ID}> SVI KOJI IGRAJU SFERU NEK DOLAZE U VOICE #SFERAVOICE I DO FAM KUCE DA SE OPREME.!!\n\n${taggedPlayers}`
       );
     }, 25 * 60 * 1000)
   );
 
-  // 30 MINUTA - FINALNA LISTA U SFERA-BOT KANAL + RESET
+  // 30 MINUTA - FINALNA LISTA
   activeSfera.timers.push(
     setTimeout(async () => {
       if (!activeSfera) return;
@@ -198,8 +206,8 @@ client.on("interactionCreate", async (interaction) => {
           : "Nema prijavljenih igrača.";
 
       await sferaBotChannel.send(
-  `<@&${RED_LOTUS_ROLE_ID}> 🌐 **FINALNA LISTA ZA SFERU** 🌐\n\n${finalList}`
-);
+        `<@&${RED_LOTUS_ROLE_ID}> 🌐 **FINALNA LISTA ZA SFERU** 🌐\n\n${finalList}`
+      );
 
       clearSferaTimers();
       activeSfera = null;
@@ -222,13 +230,17 @@ client.on("messageReactionAdd", async (reaction, user) => {
     if (activeSfera.players.length >= MAX_PLAYERS) return;
 
     activeSfera.players.push(user.id);
+
     await updateSignupMessage();
   }
 
   if (reaction.emoji.name === LEAVE_EMOJI) {
     await reaction.users.remove(user.id).catch(() => {});
 
-    activeSfera.players = activeSfera.players.filter((id) => id !== user.id);
+    activeSfera.players = activeSfera.players.filter(
+      (id) => id !== user.id
+    );
+
     await updateSignupMessage();
   }
 });
