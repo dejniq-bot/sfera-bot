@@ -20,6 +20,7 @@ const SFERA_BOT_CHANNEL_ID = process.env.SFERA_BOT_CHANNEL_ID;
 const SIGNUP_EMOJI = "✅";
 const LEAVE_EMOJI = "❎";
 const MAX_PLAYERS = 10;
+const TIMEZONE = "Europe/Sarajevo";
 
 let activeSfera = null;
 
@@ -33,10 +34,12 @@ const client = new Client({
 });
 
 function formatTime(date) {
-  return `${date.getHours().toString().padStart(2, "0")}:${date
-    .getMinutes()
-    .toString()
-    .padStart(2, "0")}`;
+  return date.toLocaleTimeString("bs-BA", {
+    timeZone: TIMEZONE,
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  });
 }
 
 function makeEmbed(players, sferaTime) {
