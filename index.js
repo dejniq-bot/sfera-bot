@@ -285,10 +285,7 @@ Zaustavio:
     `✅ ${type} pokrenut.`,
   ephemeral: true
 }); 
-    }
-);
     
-
     if (
       interaction.commandName !==
         "napad" &&
