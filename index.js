@@ -45,6 +45,7 @@ function formatTime(date) {
   return date.toLocaleTimeString(
     "bs-BA",
     {
+      timeZone: "Europe/Sarajevo",
       hour: "2-digit",
       minute: "2-digit",
       hour12: false
