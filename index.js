@@ -272,19 +272,20 @@ client.on(
       });
 
       await sendLog(
-        `🛑 SFERA ZAUSTAVLJENA
+`🛑 SFERA ZAUSTAVLJENA
 
 Zaustavio:
 <@${interaction.user.id}>`
-      );
+);
 
-      activeSfera = null;
+activeSfera = null;
 
-     return interaction.reply({
+return interaction.reply({
   content:
-    `✅ ${type} pokrenut.`,
+    "🛑 Sfera zaustavljena.",
   ephemeral: true
-}); 
+});
+}
     
     if (
       interaction.commandName !==
