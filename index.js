@@ -367,6 +367,7 @@ ${formatTime(
     });
   }
 );
+
 client.on(
   Events.InteractionCreate,
   async interaction => {
