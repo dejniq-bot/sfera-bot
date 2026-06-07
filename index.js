@@ -27,6 +27,10 @@ const SFERA_CHANNEL_ID =
 const SFERA_LOG_CHANNEL_ID =
   process.env.SFERA_LOG_CHANNEL_ID;
 
+console.log("ROLE_ID =", ROLE_ID);
+console.log("SFERA_CHANNEL_ID =", SFERA_CHANNEL_ID);
+console.log("SFERA_LOG_CHANNEL_ID =", SFERA_LOG_CHANNEL_ID);
+
 const MAX_PLAYERS = 10;
 
 const client = new Client({
