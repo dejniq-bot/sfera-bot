@@ -3,249 +3,605 @@ require("dotenv").config();
 const {
   Client,
   GatewayIntentBits,
-  Partials,
   REST,
   Routes,
   SlashCommandBuilder,
   EmbedBuilder,
+  ActionRowBuilder,
+  ButtonBuilder,
+  ButtonStyle,
+  Events
 } = require("discord.js");
 
 const TOKEN = process.env.TOKEN;
 const CLIENT_ID = process.env.CLIENT_ID;
 const GUILD_ID = process.env.GUILD_ID;
-const ANNOUNCE_CHANNEL_ID = process.env.ANNOUNCE_CHANNEL_ID;
-const RED_LOTUS_ROLE_ID = process.env.RED_LOTUS_ROLE_ID;
-const SFERA_BOT_CHANNEL_ID = process.env.SFERA_BOT_CHANNEL_ID;
 
-const SIGNUP_EMOJI = "✅";
-const LEAVE_EMOJI = "❎";
+const FAMILY_NAME = process.env.FAMILY_NAME;
+
+const ROLE_ID = process.env.ROLE_ID;
+
+const SFERA_CHANNEL_ID =
+  process.env.SFERA_CHANNEL_ID;
+
+const SFERA_LOG_CHANNEL_ID =
+  process.env.SFERA_LOG_CHANNEL_ID;
+
 const MAX_PLAYERS = 10;
-const TIMEZONE = "Europe/Sarajevo";
-
-let activeSfera = null;
 
 const client = new Client({
   intents: [
-    GatewayIntentBits.Guilds,
-    GatewayIntentBits.GuildMessages,
-    GatewayIntentBits.GuildMessageReactions,
-  ],
-  partials: [Partials.Message, Partials.Channel, Partials.Reaction],
+    GatewayIntentBits.Guilds
+  ]
 });
 
+let activeSfera = null;
+
 function formatTime(date) {
-  return date.toLocaleTimeString("bs-BA", {
-    timeZone: TIMEZONE,
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  });
+  return date.toLocaleTimeString(
+    "bs-BA",
+    {
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: false
+    }
+  );
 }
 
-function makeEmbed(players, sferaTime) {
+function createButtons(
+  disabled = false
+) {
+  return new ActionRowBuilder()
+    .addComponents(
+      new ButtonBuilder()
+        .setCustomId("join")
+        .setLabel("Prijavi se")
+        .setEmoji("✅")
+        .setStyle(
+          ButtonStyle.Success
+        )
+        .setDisabled(disabled),
+
+      new ButtonBuilder()
+        .setCustomId("leave")
+        .setLabel("Odjavi se")
+        .setEmoji("❌")
+        .setStyle(
+          ButtonStyle.Danger
+        )
+        .setDisabled(disabled)
+    );
+}
+function makeEmbed(
+  players,
+  sferaTime,
+  type
+) {
+
+  const icon =
+    type === "napad"
+      ? "⚔️"
+      : "🛡️";
+
+  const color =
+    type === "napad"
+      ? 0x8B0000
+      : 0x1E3A8A;
+
   const list =
     players.length > 0
-      ? players.map((id, i) => `**${i + 1}.** <@${id}>`).join("\n")
-      : "Niko se još nije prijavio.";
+      ? players
+          .map(
+            (id, i) =>
+              `**${i + 1}.** <@${id}>`
+          )
+          .join("\n")
+      : "Nema prijavljenih.";
 
   return new EmbedBuilder()
-    .setTitle(`🌐 Sfera prijava | Sfera u ${formatTime(sferaTime)}`)
-    .setDescription(
-      `Reaguj sa ${SIGNUP_EMOJI} za prijavu.\n` +
-        `Reaguj sa ${LEAVE_EMOJI} za odjavu.\n\n` +
-        `**Lista ${players.length}/${MAX_PLAYERS}:**\n${list}`
+    .setColor(color)
+    .setTitle(
+      `🌹 ${FAMILY_NAME}`
     )
-    .setColor(0x8b00ff)
-    .setFooter({ text: "Prijava traje 30 minuta." });
+    .setDescription(
+      `${icon} ${type.toUpperCase()} NA SFERU`
+    )
+    .addFields(
+      {
+        name: "🕘 Vrijeme sfere",
+        value:
+          formatTime(
+            sferaTime
+          ),
+        inline: true
+      },
+      {
+        name: "👥 Prijavljeni",
+        value:
+          `${players.length}/${MAX_PLAYERS}`,
+        inline: true
+      },
+      {
+        name: "📋 Lista",
+        value: list
+      }
+    )
+    .setFooter({
+      text:
+        `${FAMILY_NAME} • Sfera sistem`
+    });
 }
 
-async function sendAnnouncement(text) {
-  const channel = await client.channels.fetch(ANNOUNCE_CHANNEL_ID);
-  if (channel) await channel.send(text);
-}
+async function sendLog(
+  text
+) {
 
-async function updateSignupMessage() {
-  if (!activeSfera) return;
+  try {
 
-  await activeSfera.message.edit({
-    embeds: [makeEmbed(activeSfera.players, activeSfera.sferaTime)],
-  });
+    const channel =
+      await client.channels.fetch(
+        SFERA_LOG_CHANNEL_ID
+      );
+
+    if (channel) {
+      await channel.send(text);
+    }
+
+  } catch (err) {
+    console.error(err);
+  }
 }
 
 function clearSferaTimers() {
-  if (!activeSfera) return;
 
-  activeSfera.timers.forEach((timer) => {
-    clearTimeout(timer);
-    clearInterval(timer);
-  });
+  if (!activeSfera)
+    return;
+
+  activeSfera.timers.forEach(
+    timer => {
+      clearTimeout(timer);
+    }
+  );
+
+  activeSfera.timers = [];
 }
 
-client.once("clientReady", async () => {
-  console.log(`Bot je online kao ${client.user.tag}`);
+async function updateEmbed() {
 
-  const commands = [
-    new SlashCommandBuilder()
-      .setName("sfera")
-      .setDescription("Pokreće prijavu za sferu."),
-  ].map((cmd) => cmd.toJSON());
+  if (!activeSfera)
+    return;
 
-  const rest = new REST({ version: "10" }).setToken(TOKEN);
-
-  await rest.put(Routes.applicationGuildCommands(CLIENT_ID, GUILD_ID), {
-    body: commands,
+  await activeSfera.message.edit({
+    embeds: [
+      makeEmbed(
+        activeSfera.players,
+        activeSfera.sferaTime,
+        activeSfera.type
+      )
+    ],
+    components: [
+      createButtons(
+        activeSfera.players.length >=
+          MAX_PLAYERS
+      )
+    ]
   });
+}const commands = [
+  new SlashCommandBuilder()
+    .setName("napad")
+    .setDescription(
+      "Pokreni napad na sferu"
+    ),
 
-  console.log("Slash komanda /sfera je registrovana.");
-});
+  new SlashCommandBuilder()
+    .setName("odbrana")
+    .setDescription(
+      "Pokreni odbranu sfere"
+    ),
 
-client.on("interactionCreate", async (interaction) => {
-  if (!interaction.isChatInputCommand()) return;
-  if (interaction.commandName !== "sfera") return;
+  new SlashCommandBuilder()
+    .setName("ss")
+    .setDescription(
+      "Zaustavi aktivnu sferu"
+    )
+].map(cmd => cmd.toJSON());
 
-  await interaction.deferReply({ ephemeral: true });
+client.once(
+  Events.ClientReady,
+  async () => {
 
-  if (activeSfera) {
-    return interaction.editReply({
-      content: "❌ Sfera prijava je već aktivna.",
-    });
-  }
-
-  const sferaTime = new Date(Date.now() + 30 * 60 * 1000);
-
-  const sferaBotChannel = await client.channels.fetch(
-    SFERA_BOT_CHANNEL_ID
-  );
-
-  const message = await sferaBotChannel.send({
-    embeds: [makeEmbed([], sferaTime)],
-  });
-
-  await sferaBotChannel.send(
-    `<@&${RED_LOTUS_ROLE_ID}> 🌐 Nova Sfera prijava je otvorena!\n\nReagujte sa ✅ ili ❎ na listu ispod.\nSfera počinje u ${formatTime(
-      sferaTime
-    )}.`
-  );
-
-  await message.react(SIGNUP_EMOJI);
-  await message.react(LEAVE_EMOJI);
-
-  activeSfera = {
-    message,
-    players: [],
-    timers: [],
-    sferaTime,
-    signupChannelId: SFERA_BOT_CHANNEL_ID,
-  };
-
-  await interaction.editReply({
-    content: `✅ Sfera prijava je pokrenuta u <#${SFERA_BOT_CHANNEL_ID}>.`,
-  });
-
-  // SVAKIH 5 MINUTA
-  activeSfera.timers.push(
-    setInterval(async () => {
-      if (!activeSfera) return;
-
-      const diffMs = activeSfera.sferaTime.getTime() - Date.now();
-      const minutesLeft = Math.ceil(diffMs / 60000);
-
-      if (minutesLeft <= 0) return;
-
-      await sendAnnouncement(
-        `<@&${RED_LOTUS_ROLE_ID}> Do sfere ima još **${minutesLeft} minuta**.\n\nPrijava: <#${activeSfera.signupChannelId}>`
-      );
-    }, 5 * 60 * 1000)
-  );
-
-  // 1 MINUTA
-  activeSfera.timers.push(
-    setTimeout(async () => {
-      if (!activeSfera) return;
-
-      await sendAnnouncement(
-        `<@&${RED_LOTUS_ROLE_ID}> Napali smo sferu. Za 29 minuta teleport. Ako winamo bonusi su dobri.`
-      );
-    }, 1 * 60 * 1000)
-  );
-
-  // 15 MINUTA
-  activeSfera.timers.push(
-    setTimeout(async () => {
-      if (!activeSfera) return;
-
-      await sendAnnouncement(
-        `<@&${RED_LOTUS_ROLE_ID}> Sfera za 15 minuta. Reagujte za sfera listu da bi igrali.\n\nPrijava: <#${activeSfera.signupChannelId}>`
-      );
-    }, 15 * 60 * 1000)
-  );
-
-  // 25 MINUTA
-  activeSfera.timers.push(
-    setTimeout(async () => {
-      if (!activeSfera) return;
-
-      const taggedPlayers =
-        activeSfera.players.length > 0
-          ? activeSfera.players.map((id) => `<@${id}>`).join(" ")
-          : "Nema prijavljenih igrača.";
-
-      await sendAnnouncement(
-        `<@&${RED_LOTUS_ROLE_ID}> SVI KOJI IGRAJU SFERU NEK DOLAZE U VOICE #SFERAVOICE I DO FAM KUCE DA SE OPREME.!!\n\n${taggedPlayers}`
-      );
-    }, 25 * 60 * 1000)
-  );
-
-  // 30 MINUTA - FINALNA LISTA
-  activeSfera.timers.push(
-    setTimeout(async () => {
-      if (!activeSfera) return;
-
-      const finalList =
-        activeSfera.players.length > 0
-          ? activeSfera.players
-              .map((id, i) => `**${i + 1}.** <@${id}>`)
-              .join("\n")
-          : "Nema prijavljenih igrača.";
-
-      await sferaBotChannel.send(
-        `<@&${RED_LOTUS_ROLE_ID}> 🌐 **FINALNA LISTA ZA SFERU** 🌐\n\n${finalList}`
-      );
-
-      clearSferaTimers();
-      activeSfera = null;
-    }, 30 * 60 * 1000)
-  );
-});
-
-client.on("messageReactionAdd", async (reaction, user) => {
-  if (user.bot || !activeSfera) return;
-
-  if (reaction.partial) await reaction.fetch();
-
-  if (reaction.message.id !== activeSfera.message.id) return;
-
-  if (reaction.emoji.name === SIGNUP_EMOJI) {
-    await reaction.users.remove(user.id).catch(() => {});
-
-    if (activeSfera.players.includes(user.id)) return;
-
-    if (activeSfera.players.length >= MAX_PLAYERS) return;
-
-    activeSfera.players.push(user.id);
-
-    await updateSignupMessage();
-  }
-
-  if (reaction.emoji.name === LEAVE_EMOJI) {
-    await reaction.users.remove(user.id).catch(() => {});
-
-    activeSfera.players = activeSfera.players.filter(
-      (id) => id !== user.id
+    console.log(
+      `Bot online: ${client.user.tag}`
     );
 
-    await updateSignupMessage();
-  }
-});
+    const rest =
+      new REST({
+        version: "10"
+      }).setToken(TOKEN);
 
+    try {
+
+      await rest.put(
+        Routes.applicationGuildCommands(
+          CLIENT_ID,
+          GUILD_ID
+        ),
+        {
+          body: commands
+        }
+      );
+
+      console.log(
+        "Slash komande registrovane."
+      );
+
+    } catch (err) {
+      console.error(err);
+    }
+  }
+);
+
+client.on(
+  Events.InteractionCreate,
+  async interaction => {
+
+    if (
+      !interaction.isChatInputCommand()
+    ) return;
+
+    if (
+      interaction.commandName ===
+      "ss"
+    ) {
+
+      if (!activeSfera) {
+
+        return interaction.reply({
+          content:
+            "❌ Nema aktivne sfere.",
+          ephemeral: true
+        });
+      }
+
+      clearSferaTimers();
+
+      await activeSfera.message.edit({
+        components: [
+          createButtons(true)
+        ]
+      });
+
+      await sendLog(
+        `🛑 SFERA ZAUSTAVLJENA
+
+Zaustavio:
+<@${interaction.user.id}>`
+      );
+
+      activeSfera = null;
+
+     return interaction.reply({
+  content:
+    `✅ ${type} pokrenut.`,
+  ephemeral: true
+}); 
+    }
+);
+    
+
+    if (
+      interaction.commandName !==
+        "napad" &&
+      interaction.commandName !==
+        "odbrana"
+    ) {
+      return;
+    }
+
+    if (activeSfera) {
+
+      return interaction.reply({
+        content:
+          "❌ Već postoji aktivna sfera.",
+        ephemeral: true
+      });
+    }
+
+    const type =
+      interaction.commandName;
+
+    const sferaTime =
+      new Date(
+        Date.now() +
+        30 * 60 * 1000
+      );
+
+    const sferaChannel =
+      await client.channels.fetch(
+        SFERA_CHANNEL_ID
+      );
+
+    const message =
+      await sferaChannel.send({
+        content:
+          `<@&${ROLE_ID}>`,
+        embeds: [
+          makeEmbed(
+            [],
+            sferaTime,
+            type
+          )
+        ],
+        components: [
+          createButtons()
+        ]
+      });
+
+    activeSfera = {
+  type,
+  creator:
+    interaction.user.id,
+  message,
+  players: [],
+  timers: [],
+  sferaTime
+};
+
+scheduleSferaTimers();
+
+    await sendLog(
+      `${type === "napad"
+        ? "⚔️"
+        : "🛡️"} ${type.toUpperCase()}
+
+Pokrenuo:
+<@${interaction.user.id}>
+
+Vrijeme:
+${formatTime(
+  sferaTime
+)}`
+    );
+
+    return interaction.reply({
+      content:
+        `✅ ${type} pokrenut.`,
+      ephemeral: true
+    });
+  }
+);
+client.on(
+  Events.InteractionCreate,
+  async interaction => {
+
+    if (
+      !interaction.isButton()
+    ) return;
+
+    if (!activeSfera) {
+
+      return interaction.reply({
+        content:
+          "❌ Nema aktivne sfere.",
+        ephemeral: true
+      });
+    }
+
+    if (
+      interaction.customId ===
+      "join"
+    ) {
+
+      if (
+        activeSfera.players.includes(
+          interaction.user.id
+        )
+      ) {
+
+        return interaction.reply({
+          content:
+            "❌ Već si prijavljen.",
+          ephemeral: true
+        });
+      }
+
+      if (
+        activeSfera.players.length >=
+        MAX_PLAYERS
+      ) {
+
+        return interaction.reply({
+          content:
+            "❌ Lista je puna.",
+          ephemeral: true
+        });
+      }
+
+      activeSfera.players.push(
+        interaction.user.id
+      );
+
+      await updateEmbed();
+
+      return interaction.reply({
+        content:
+          "✅ Uspješno si prijavljen.",
+        ephemeral: true
+      });
+    }
+
+    if (
+      interaction.customId ===
+      "leave"
+    ) {
+
+      activeSfera.players =
+        activeSfera.players.filter(
+          id =>
+            id !==
+            interaction.user.id
+        );
+
+      await updateEmbed();
+
+      return interaction.reply({
+        content:
+          "❌ Uklonjen si sa liste.",
+        ephemeral: true
+      });
+    }
+  }
+);
+async function startSphereNow() {
+
+  if (!activeSfera)
+    return;
+
+  const channel =
+    await client.channels.fetch(
+      SFERA_CHANNEL_ID
+    );
+
+  const mentions =
+    activeSfera.players.length > 0
+      ? activeSfera.players
+          .map(
+            id => `<@${id}>`
+          )
+          .join(" ")
+      : "";
+
+  await channel.send(
+`${mentions}
+
+🚨 SFERA JE POČELA
+
+${activeSfera.type === "napad"
+  ? "⚔️ NAPAD"
+  : "🛡️ ODBRANA"}
+
+🕘 ${formatTime(
+  activeSfera.sferaTime
+)}
+
+🎙️ SVI U VOICE!
+🔫 OPREMITE SE!`
+  );
+
+  await sendLog(
+`✅ SFERA POČELA
+
+Tip:
+${activeSfera.type}
+
+Pokrenuo:
+<@${activeSfera.creator}>
+
+Prijavljeno:
+${activeSfera.players.length}/10`
+  );
+
+  await activeSfera.message.edit({
+    embeds: [
+      makeEmbed(
+        activeSfera.players,
+        activeSfera.sferaTime,
+        activeSfera.type
+      )
+    ],
+    components: [
+      createButtons(true)
+    ]
+  });
+
+  clearSferaTimers();
+
+  activeSfera = null;
+}
+
+function scheduleSferaTimers() {
+
+  const notifications = [
+    25,
+    20,
+    15,
+    10,
+    5,
+    4,
+    3,
+    2,
+    1
+  ];
+
+  notifications.forEach(
+    minutesLeft => {
+
+      const delay =
+        (30 - minutesLeft) *
+        60 *
+        1000;
+
+      const timer =
+        setTimeout(
+          async () => {
+
+            if (!activeSfera)
+              return;
+
+            const channel =
+              await client.channels.fetch(
+                SFERA_CHANNEL_ID
+              );
+
+            const icon =
+              activeSfera.type ===
+              "napad"
+                ? "⚔️"
+                : "🛡️";
+
+            let text =
+`<@&${ROLE_ID}>
+
+🌹 ${FAMILY_NAME}
+
+${icon} ${activeSfera.type.toUpperCase()}
+
+⏳ Ostalo ${minutesLeft} minuta
+🕘 Sfera u ${formatTime(
+  activeSfera.sferaTime
+)}`;
+
+            if (
+              minutesLeft <= 5
+            ) {
+
+              text +=
+`\n\n🎙️ UĐITE U VOICE
+🔫 ZAVRŠITE OPREMANJE`;
+            }
+
+            await channel.send(
+              text
+            );
+
+          },
+          delay
+        );
+
+      activeSfera.timers.push(
+        timer
+      );
+    }
+  );
+
+  const startTimer =
+    setTimeout(
+      startSphereNow,
+      30 * 60 * 1000
+    );
+
+  activeSfera.timers.push(
+    startTimer
+  );
+}
 client.login(TOKEN);
