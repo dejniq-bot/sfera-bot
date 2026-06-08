@@ -24,6 +24,9 @@ const ROLE_ID = process.env.ROLE_ID;
 const SFERA_CHANNEL_ID =
   process.env.SFERA_CHANNEL_ID;
 
+const SFERA_OBAVJESTENJA_CHANNEL_ID =
+  process.env.SFERA_OBAVJESTENJA_CHANNEL_ID;
+
 const SFERA_LOG_CHANNEL_ID =
   process.env.SFERA_LOG_CHANNEL_ID;
 
@@ -404,7 +407,7 @@ client.on(
 
         return interaction.reply({
           content:
-            "❌ Već si prijavljen.",
+            "❌ Već si na listi, idi opremi se pancirima.",
           ephemeral: true
         });
       }
@@ -462,9 +465,9 @@ async function startSphereNow() {
     return;
 
   const channel =
-    await client.channels.fetch(
-      SFERA_CHANNEL_ID
-    );
+  await client.channels.fetch(
+    SFERA_OBAVJESTENJA_CHANNEL_ID
+  );
 
   const mentions =
     activeSfera.players.length > 0
@@ -553,9 +556,9 @@ function scheduleSferaTimers() {
               return;
 
             const channel =
-              await client.channels.fetch(
-                SFERA_CHANNEL_ID
-              );
+  await client.channels.fetch(
+    SFERA_OBAVJESTENJA_CHANNEL_ID
+  );
 
             const icon =
               activeSfera.type ===
